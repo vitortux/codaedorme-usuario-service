@@ -1,15 +1,18 @@
 package br.com.codaedorme.usuarioservice.service;
 
+import java.util.List;
+
 import lombok.RequiredArgsConstructor;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import br.com.codaedorme.usuarioservice.domain.dto.LoginDTO;
+import br.com.codaedorme.usuarioservice.domain.dto.PasswordRequestDTO;
 import br.com.codaedorme.usuarioservice.domain.dto.UserDTO;
 import br.com.codaedorme.usuarioservice.domain.entity.User;
-import br.com.codaedorme.usuarioservice.domain.enumeration.StatusEnum;
+import br.com.codaedorme.usuarioservice.exception.BusinessException;
 import br.com.codaedorme.usuarioservice.repository.UserRepository;
 
 @Service
@@ -22,24 +25,26 @@ public class UserService {
 
 	private static final BCryptPasswordEncoder pwdEncoder = new BCryptPasswordEncoder(12);
 
-	public Long create(final UserDTO user) {
-		User entity = mapper.map(user, User.class);
-		StatusEnum status = StatusEnum.ATIVO;
-		String cryptogrifiedPwd = pwdEncoder.encode(user.getPassword());
+	public void updatePwd(final Long id, final PasswordRequestDTO request) throws BusinessException {
+		User entity = repository.findById(id)
+				.orElseThrow(() -> new BusinessException("Não foi possível encontrar este usuário", HttpStatus.BAD_REQUEST));
 
-		entity.setStatus(status);
-		entity.setPassword(cryptogrifiedPwd);
-
-		return repository.save(entity).getId();
-	}
-
-	public UserDTO login(final LoginDTO credentials) {
-		User entity = repository.findByEmail(credentials.email()).orElseThrow(() -> new RuntimeException());
-
-		if (!pwdEncoder.matches(credentials.password(), entity.getPassword())) {
-			throw new RuntimeException();
+		if (!request.pwdEquals()) {
+			throw new BusinessException("Senhas não batem", HttpStatus.BAD_REQUEST);
 		}
 
-		return mapper.map(entity, UserDTO.class);
+		String newPwd = pwdEncoder.encode(request.pwd());
+
+		entity.setPassword(newPwd);
+	}
+
+	public List<UserDTO> findAll() {
+		List<User> entities = repository.findAll();
+
+		List<UserDTO> response = entities.stream()
+				.map(entity -> mapper.map(entity, UserDTO.class))
+				.toList();
+
+		return response;
 	}
 }
